@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import BaseUserManager, AbstractBaseUser
+from django.contrib.auth.models import BaseUserManager, AbstractBaseUser, PermissionsMixin
 from django.utils import timezone
 
 
@@ -45,7 +45,7 @@ class UserManager(BaseUserManager):
         return user
 
 
-class User(AbstractBaseUser):
+class User(AbstractBaseUser,PermissionsMixin):
     email = models.EmailField(
         primary_key=True,
         verbose_name='Email',
@@ -67,6 +67,12 @@ class User(AbstractBaseUser):
     REQUIRED_FIELDS = ['fullName']
 
 
+    # class Meta:
+    #     permissions = (
+    #         ("can_view_dashboard", "Can view dashboard"),
+    #         ("can_edit_profile", "Can edit profile"),
+    #     )
+
 
     def __str__(self):
         return self.fullName
@@ -75,19 +81,64 @@ class User(AbstractBaseUser):
     #     return self.fullName
     
 
+    # def has_perm(self, perm, obj=None):
+    #     "Does the user have a specific permission?"
+    #     # Simplest possible answer: Yes, always
+    #     return self.is_superuser
+
+
+    # def has_module_perms(self, app_label):
+    #     "Does the user have permissions to view the app `app_label`?"
+    #     # Simplest possible answer: Yes, always
+    #     return True
+
+    # @property
+    # def is_staff(self):
+    #     "Is the user a member of staff?"
+    #     # Simplest possible answer: All admins are staff
+    #     return self.is_superuser
+
+
+
     def has_perm(self, perm, obj=None):
-        "Does the user have a specific permission?"
-        # Simplest possible answer: Yes, always
-        return self.is_superuser
+        # Custom logic: superusers have all permissions
+        if self.is_superuser:
+            return True
+
+        # Custom logic: check if user is in a specific group
+        if self.groups.filter(name='SpecialGroup').exists():
+            return True
+
+        # Default permission checking
+        return super().has_perm(perm, obj)
 
 
     def has_module_perms(self, app_label):
-        "Does the user have permissions to view the app `app_label`?"
-        # Simplest possible answer: Yes, always
-        return True
+        # Custom logic: superusers have permissions for any module
+        if self.is_superuser:
+            return True
+
+        # Custom logic: allow access to specific modules for users in certain groups
+        allowed_groups = ['SpecialGroup', 'AnotherGroup']
+        if self.groups.filter(name__in=allowed_groups).exists():
+            return True
+
+        # Default module permission checking
+        return super().has_module_perms(app_label)
+
 
     @property
     def is_staff(self):
-        "Is the user a member of staff?"
-        # Simplest possible answer: All admins are staff
-        return self.is_superuser
+        # Custom logic: superusers are always staff
+        if self.is_superuser:
+            # print(1)
+            return True
+
+        if self.two_factor_enable:
+            # print(2)
+            return True
+        # Custom logic: users with custom attribute are staff
+        # return self.custom_attribute
+        return False
+    
+
